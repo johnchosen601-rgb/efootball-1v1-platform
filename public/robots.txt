@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://efootball1v1.com/sitemap.xml
