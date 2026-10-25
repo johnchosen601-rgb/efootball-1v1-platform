@@ -111,6 +111,7 @@ export const updateTournamentSettings = (id: string, input: TournamentSettings) 
   p_starts_at: input.starts_at, p_registration_open: input.registration_open,
 })
 export const startTournament = (id: string) => call<void>('start_tournament', { p_tournament_id: id })
+export const endTournament = (id: string) => call<void>('end_tournament', { p_tournament_id: id })
 export const submitTournamentResult = (id: string, ownScore: number, opponentScore: number) => call<void>('submit_tournament_result', {
   p_match_id: id, p_own_score: ownScore, p_opponent_score: opponentScore,
 })

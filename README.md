@@ -1,4 +1,4 @@
-# eFootball 1v1
+# ConnectGamers1v1
 
 An independent eFootball player community for finding one on one matches. The platform includes Supabase authentication, player profiles, live match requests, private match rooms and chat, mutually confirmed results, player discovery and rankings, and knockout tournaments with organizer-managed rosters and bracket progression.
 

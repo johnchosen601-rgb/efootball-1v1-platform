@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, BadgeCheck, Camera, Gamepad2, Globe2, Medal, Save, Shield, Swords, Trophy, UserRound } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BadgeCheck, Gamepad2, Globe2, Medal, Save, Shield, Swords, Trophy, UserRound } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { getProfile, getProfileMatches, getProfileRank, updateProfile } from '../lib/matches'
 import { supabase } from '../lib/supabase'
@@ -15,14 +15,6 @@ const readableError = (error: unknown) => {
   const e = error as { message?: string; code?: string }
   return import.meta.env.DEV ? [e.code, e.message].filter(Boolean).join(': ') || 'Unknown error' : e.message || 'Please try again.'
 }
-function ownAvatarPath(url: string | null, userId: string) {
-  if (!url || !supabase) return null
-  const base = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/player-avatars/`
-  if (!url.startsWith(base)) return null
-  const path = decodeURIComponent(url.slice(base.length).split('?')[0])
-  return path.startsWith(`${userId}/`) ? path : null
-}
-
 export function PlayerProfilePage({ profileId, ownId, onBack, onEdit, onOpenPlayer, notify }: {
   profileId: string; ownId: string | null; onBack: () => void; onEdit: () => void;
   onOpenPlayer: (id: string) => void; notify: (notice: Notice) => void
@@ -107,9 +99,7 @@ function ProfileMatchRow({ match, onOpenPlayer }: { match: Awaited<ReturnType<ty
 
 export function EditProfilePage({ session, initialProfile, onBack, onSaved, notify }: { session: Session | null; initialProfile: Profile | null; onBack: () => void; onSaved: () => void; notify: (notice: Notice) => void }) {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [form, setForm] = useState({ username: '', display_name: '', country: '', efootball_id: '', platform: '', favourite_club: '', playing_style: '', bio: '', avatar_url: '' })
-  const [file, setFile] = useState<File | null>(null)
-  const [preview, setPreview] = useState<string | null>(null)
+  const [form, setForm] = useState({ username: '', display_name: '', country: '', efootball_id: '', platform: '', favourite_club: '', playing_style: '', bio: '' })
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
@@ -120,40 +110,17 @@ export function EditProfilePage({ session, initialProfile, onBack, onSaved, noti
       if (!active) return
       const p = loaded?.username ? loaded : initialProfile ?? loaded
       setProfile(p)
-      if (p) setForm({ username: p.username, display_name: p.display_name || '', country: p.country || '', efootball_id: p.efootball_id || '', platform: p.platform || '', favourite_club: p.favourite_club || '', playing_style: p.playing_style || '', bio: p.bio || '', avatar_url: p.avatar_url || '' })
+      if (p) setForm({ username: p.username, display_name: p.display_name || '', country: p.country || '', efootball_id: p.efootball_id || '', platform: p.platform || '', favourite_club: p.favourite_club || '', playing_style: p.playing_style || '', bio: p.bio || '' })
     }).catch(error => notify({ kind: 'error', text: `Could not load your profile. ${readableError(error)}` })).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [session?.user.id, initialProfile?.id])
   const field = (key: keyof typeof form, value: string) => setForm(prev => ({ ...prev, [key]: value }))
-  useEffect(() => {
-    if (!file) { setPreview(null); return }
-    const url = URL.createObjectURL(file)
-    setPreview(url)
-    return () => URL.revokeObjectURL(url)
-  }, [file])
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!session || !profile || !supabase) return
     setBusy(true)
     try {
-      let avatarUrl = form.avatar_url || null
-      if (file) {
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('Choose a JPEG, PNG or WebP image.')
-        if (file.size > 5 * 1024 * 1024) throw new Error('Avatar images must be 5 MB or smaller.')
-        const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
-        const path = `${session.user.id}/${crypto.randomUUID()}.${ext}`
-        const { error: uploadError } = await supabase.storage.from('player-avatars').upload(path, file, { contentType: file.type, cacheControl: '3600', upsert: false })
-        if (uploadError) throw uploadError
-        avatarUrl = supabase.storage.from('player-avatars').getPublicUrl(path).data.publicUrl
-      }
-      await updateProfile(session.user.id, { username: form.username.trim() || profile.username, display_name: form.display_name.trim() || null, country: form.country.trim() || null, efootball_id: form.efootball_id.trim() || null, platform: form.platform.trim() || null, favourite_club: form.favourite_club.trim() || null, playing_style: form.playing_style.trim() || null, bio: form.bio.trim() || null, avatar_url: avatarUrl })
-      if (profile.avatar_url !== avatarUrl) {
-        const oldPath = ownAvatarPath(profile.avatar_url, session.user.id)
-        if (oldPath) {
-          const { error: removeError } = await supabase.storage.from('player-avatars').remove([oldPath])
-          if (removeError) console.error('Could not remove replaced player avatar:', removeError)
-        }
-      }
+      await updateProfile(session.user.id, { username: form.username.trim() || profile.username, display_name: form.display_name.trim() || null, country: form.country.trim() || null, efootball_id: form.efootball_id.trim() || null, platform: form.platform.trim() || null, favourite_club: form.favourite_club.trim() || null, playing_style: form.playing_style.trim() || null, bio: form.bio.trim() || null, avatar_url: profile.avatar_url })
       notify({ kind: 'success', text: 'Your player profile has been updated.' }); onSaved()
     } catch (error) { notify({ kind: 'error', text: `Profile could not be saved. ${readableError(error)}` }) }
     finally { setBusy(false) }
@@ -164,7 +131,7 @@ export function EditProfilePage({ session, initialProfile, onBack, onSaved, noti
     <button className="back-link" onClick={onBack}><ArrowLeft size={15}/> Back to player card</button>
     <div className="page-intro"><div className="eyebrow"><span className="eyebrow-dot"/> YOUR PLAYER CARD</div><h1>Edit profile.</h1><p>Set up your public competitive profile. Your account email stays private.</p></div>
     <form className="panel edit-profile-form" onSubmit={e => void save(e)}>
-      <div className="edit-avatar-row"><Avatar name={form.display_name || form.username || 'Player'} image={preview || form.avatar_url} size="profile"/><label className="button button-outline avatar-upload"><Camera size={15}/> {file ? 'Choose another' : 'Upload avatar'}<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e => setFile(e.target.files?.[0] ?? null)} hidden/></label>{(file || form.avatar_url) && <button type="button" className="button button-outline avatar-remove" onClick={() => { setFile(null); field('avatar_url', '') }}>Remove photo</button>}<span>JPEG, PNG or WebP · up to 5 MB</span></div>
+      <div className="edit-avatar-row"><Avatar name={form.display_name || form.username || 'Player'} image={profile.avatar_url} size="profile"/><span>Your initials are used when no profile photo is available.</span></div>
       <div className="edit-profile-grid">
         <label>Username<input required minLength={3} maxLength={24} pattern="[A-Za-z0-9_]+" defaultValue={initialProfile?.username || form.username || profile.username} onChange={e => field('username', e.target.value)} autoComplete="off"/><small>Letters, numbers and underscores.</small></label>
         <label>Display name<input maxLength={48} value={form.display_name} onChange={e => field('display_name', e.target.value)}/></label>

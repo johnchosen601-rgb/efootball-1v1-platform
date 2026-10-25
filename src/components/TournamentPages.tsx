@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, CircleHelp, Crown, Plus, Search, Settings2, ShieldCheck, Swords, Trophy, UserPlus, UserRoundMinus, Users, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarDays, Check, ChevronRight, CircleHelp, Crown, Plus, Search, Settings2, ShieldCheck, Swords, Trophy, UserPlus, UserRoundMinus, Users, X, OctagonX } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { Avatar, PlayerLink } from './PlayerBits'
-import { addTournamentPlayer, createTournament, getTournamentDetails, getTournaments, joinTournament, removeTournamentPlayer, resolveTournamentResult, searchTournamentPlayers, startTournament, submitTournamentResult, updateTournamentSettings, type TournamentInput, type TournamentSettings } from '../lib/tournaments'
+import { addTournamentPlayer, createTournament, endTournament, getTournamentDetails, getTournaments, joinTournament, removeTournamentPlayer, resolveTournamentResult, searchTournamentPlayers, startTournament, submitTournamentResult, updateTournamentSettings, type TournamentInput, type TournamentSettings } from '../lib/tournaments'
 import type { Profile, Tournament, TournamentDetails, TournamentMatch } from '../lib/types'
 import { supabase } from '../lib/supabase'
 import { TOURNAMENT_MATCH_RULES, TOURNAMENT_RESULT_POLICY } from '../lib/tournamentRules'
@@ -68,11 +68,25 @@ export function TournamentPage({ session, tournamentId, onOpenTournament, onOpen
     setPendingJoinId(null)
     void act(() => joinTournament(id), 'You joined the tournament.')
   }
+  const endCurrentTournament = async () => {
+    if (!tournamentId) return 'Tournament is unavailable.'
+    setBusy(true)
+    try {
+      await endTournament(tournamentId)
+      notify({ kind: 'success', text: 'Tournament ended. Final standings are now available.' })
+      await refresh()
+      return null
+    } catch (e) {
+      const message = errorText(e)
+      notify({ kind: 'error', text: message })
+      return message
+    } finally { setBusy(false) }
+  }
   const pendingJoinTitle = details?.tournament.id === pendingJoinId
     ? details.tournament.title
     : items.find(item => item.tournament.id === pendingJoinId)?.tournament.title ?? 'this tournament'
   if (!session) return <><div className="page-intro"><div className="eyebrow"><span className="eyebrow-dot"/> COMPETE TOGETHER</div><h1>Tournaments.</h1><p>Enter a free knockout competition and play your way to the final.</p></div><section className="panel tournament-auth-card"><Trophy size={25}/><h2>Sign in to find a tournament.</h2><p>Browse brackets, register for events and track tournament titles on your player profile.</p><button className="button button-lime" onClick={onAuth}>Sign in to compete <ArrowRight size={15}/></button></section></>
-  if (tournamentId) return <><TournamentDetailsView details={details} loading={loading} error={error} userId={session.user.id} busy={busy} onBack={() => onOpenTournament('')} onJoin={() => setPendingJoinId(tournamentId)} onStart={() => void act(() => startTournament(tournamentId), 'Bracket generated. The tournament has started.')} onOpenProfile={onOpenProfile} onSettings={settings => void act(() => updateTournamentSettings(tournamentId, settings), 'Tournament settings saved.')} onAddPlayer={playerId => void act(() => addTournamentPlayer(tournamentId, playerId), 'Player added to the tournament.')} onRemovePlayer={playerId => void act(() => removeTournamentPlayer(tournamentId, playerId), 'Player removed from the tournament.')} onSubmit={(matchId, own, opponent) => void act(() => submitTournamentResult(matchId, own, opponent), 'Result submitted. Waiting for your opponent to confirm.')} onResolve={(matchId, one, two) => void act(() => resolveTournamentResult(matchId, one, two), 'Organizer decision saved and bracket advanced.')}/>{pendingJoinId === tournamentId && <TournamentRulesAcknowledgement title={pendingJoinTitle} busy={busy} onCancel={() => setPendingJoinId(null)} onConfirm={confirmJoin}/>}</>
+  if (tournamentId) return <><TournamentDetailsView details={details} loading={loading} error={error} userId={session.user.id} busy={busy} onBack={() => onOpenTournament('')} onJoin={() => setPendingJoinId(tournamentId)} onStart={() => void act(() => startTournament(tournamentId), 'Bracket generated. The tournament has started.')} onEnd={endCurrentTournament} onOpenProfile={onOpenProfile} onSettings={settings => void act(() => updateTournamentSettings(tournamentId, settings), 'Tournament settings saved.')} onAddPlayer={playerId => void act(() => addTournamentPlayer(tournamentId, playerId), 'Player added to the tournament.')} onRemovePlayer={playerId => void act(() => removeTournamentPlayer(tournamentId, playerId), 'Player removed from the tournament.')} onSubmit={(matchId, own, opponent) => void act(() => submitTournamentResult(matchId, own, opponent), 'Result submitted. Waiting for your opponent to confirm.')} onResolve={(matchId, one, two) => void act(() => resolveTournamentResult(matchId, one, two), 'Organizer decision saved and bracket advanced.')}/>{pendingJoinId === tournamentId && <TournamentRulesAcknowledgement title={pendingJoinTitle} busy={busy} onCancel={() => setPendingJoinId(null)} onConfirm={confirmJoin}/>}</>
   return <>
     <div className="page-intro tournament-list-intro"><div><div className="eyebrow"><span className="eyebrow-dot"/> COMPETE TOGETHER</div><h1>Tournaments.</h1><p>Join a free knockout competition and build your record on the pitch.</p></div><button className="button button-lime" onClick={() => setCreateOpen(true)}><Plus size={15}/> Create tournament</button></div>
     <div className="tournament-information"><span><ShieldCheck size={15}/> Free community competitions</span><span><CircleHelp size={15}/> No entry fees or wagering</span></div>
@@ -120,12 +134,13 @@ function CreateTournamentForm({ busy, onClose, onCreate }: { busy: boolean; onCl
   </form></div>
 }
 
-function TournamentDetailsView({ details, loading, error, userId, busy, onBack, onJoin, onStart, onOpenProfile, onSettings, onAddPlayer, onRemovePlayer, onSubmit, onResolve }: {
+function TournamentDetailsView({ details, loading, error, userId, busy, onBack, onJoin, onStart, onEnd, onOpenProfile, onSettings, onAddPlayer, onRemovePlayer, onSubmit, onResolve }: {
   details: TournamentDetails | null; loading: boolean; error: string; userId: string; busy: boolean; onBack: () => void;
-  onJoin: () => void; onStart: () => void; onOpenProfile: (id: string) => void;
+  onJoin: () => void; onStart: () => void; onEnd: () => Promise<string | null>; onOpenProfile: (id: string) => void;
   onSettings: (settings: TournamentSettings) => void; onAddPlayer: (playerId: string) => void; onRemovePlayer: (playerId: string) => void;
   onSubmit: (matchId: string, own: number, opponent: number) => void; onResolve: (matchId: string, one: number, two: number) => void;
 }) {
+  const [endConfirmationOpen, setEndConfirmationOpen] = useState(false)
   if (loading) return <div className="room-loading"><span className="spinner"/> Loading tournament…</div>
   if (!details) return <div className="tournament-empty"><button className="back-link" onClick={onBack}><ArrowLeft size={15}/> Tournaments</button><p>{error || 'Tournament unavailable.'}</p></div>
   const { tournament: t, participants, matches } = details
@@ -134,21 +149,62 @@ function TournamentDetailsView({ details, loading, error, userId, busy, onBack, 
   const joinedCount = participants.length
   const rounds = matches.length ? Array.from({ length: Math.log2(t.max_players) }, (_, index) => index + 1) : []
   const winner = participants.find(player => player.player_id === t.winner_id)?.profile
+  const standings = calculateTournamentStandings(participants, matches, t.winner_id)
   return <>
     <button className="back-link" onClick={onBack}><ArrowLeft size={15}/> All tournaments</button>
     {error && <div className="tournament-error">{error}</div>}
     <section className="panel tournament-detail-hero"><div className="tournament-detail-emblem"><Trophy size={25}/></div><div className="tournament-detail-copy"><span className={`tournament-status tournament-${t.status}`}>{t.status === 'registration' ? t.registration_open ? 'REGISTRATION OPEN' : 'REGISTRATION PAUSED' : t.status.replace('_', ' ').toUpperCase()}</span><h1>{t.title}</h1><p>{t.description || 'Community knockout competition.'}</p><div className="tournament-card-meta"><span><CalendarDays size={14}/>{prettyDate(t.starts_at)}</span><span><Users size={14}/>{joinedCount} / {t.max_players} players</span><span><Swords size={14}/>{Math.log2(t.max_players)} rounds</span></div></div>
-      <div className="tournament-detail-actions">{t.status === 'registration' && t.registration_open && !isJoined && joinedCount < t.max_players && <button className="button button-lime" disabled={busy} onClick={onJoin}>Join tournament <ArrowRight size={15}/></button>}{t.status === 'registration' && isOrganizer && <button className="button button-outline" disabled={busy || joinedCount !== t.max_players} onClick={onStart}>{busy ? 'Starting…' : 'Start tournament'} <Swords size={14}/></button>}</div>
+      <div className="tournament-detail-actions">{t.status === 'registration' && t.registration_open && !isJoined && joinedCount < t.max_players && <button className="button button-lime" disabled={busy} onClick={onJoin}>Join tournament <ArrowRight size={15}/></button>}{t.status === 'registration' && isOrganizer && <button className="button button-outline" disabled={busy || joinedCount !== t.max_players} onClick={onStart}>{busy ? 'Starting…' : 'Start tournament'} <Swords size={14}/></button>}{isOrganizer && (t.status === 'registration' || t.status === 'in_progress') && <button className="button button-end-tournament" disabled={busy} onClick={() => setEndConfirmationOpen(true)}><OctagonX size={14}/> End Tournament</button>}</div>
     </section>
     <TournamentRulesCard/>
     {t.status === 'completed' && winner && <div className="tournament-champion"><span><Crown size={21}/></span><div><small>TOURNAMENT CHAMPION</small><PlayerLink id={winner.id} onOpen={onOpenProfile}><b>{winner.display_name || winner.username}</b></PlayerLink></div></div>}
+    {t.status === 'completed' && !winner && <div className="tournament-no-champion"><ShieldCheck size={17}/><span><b>No champion determined.</b> The tournament ended before a final winner was recorded.</span></div>}
+    {t.status === 'completed' && <TournamentFinalStandings maxPlayers={t.max_players} standings={standings} hasChampion={Boolean(winner)} onOpenProfile={onOpenProfile}/>}
     <div className="tournament-detail-grid"><section className="panel tournament-roster"><div className="panel-head"><div><div className="eyebrow"><span className="eyebrow-dot"/> REGISTERED PLAYERS</div><h3>Competitors</h3></div><span className="muted-caption">{joinedCount} / {t.max_players} players</span></div>{participants.length ? <div className="tournament-roster-list">{participants.map(player => <div className="tournament-roster-row" key={player.player_id}><span className="tournament-seed">{player.seed.toString().padStart(2, '0')}</span><PlayerLink id={player.player_id} onOpen={onOpenProfile} className="tournament-roster-player"><Avatar name={player.profile?.display_name || player.profile?.username || 'Player'} image={player.profile?.avatar_url} size="sm"/><span><b>{player.profile?.display_name || player.profile?.username || 'Player'}</b><small>@{player.profile?.username || 'player'}</small></span></PlayerLink>{player.player_id === t.organizer_id && <span className="tournament-organizer-tag">ORGANIZER</span>}{isOrganizer && t.status === 'registration' && player.player_id !== t.organizer_id && <button className="tournament-player-remove" type="button" disabled={busy} onClick={() => onRemovePlayer(player.player_id)}><UserRoundMinus size={14}/> Remove</button>}</div>)}</div> : <div className="profile-empty-note"><Users size={17}/> No players have registered.</div>}
     {isOrganizer && t.status === 'registration' && <><div className="tournament-divider"/><TournamentPlayerManager tournament={t} participants={participants} busy={busy} onAdd={onAddPlayer} onRemove={onRemovePlayer} onOpenProfile={onOpenProfile}/><div className="tournament-divider"/><TournamentSettingsForm tournament={t} busy={busy} onSave={onSettings}/><button className="button button-outline tournament-start-full" disabled={busy || joinedCount !== t.max_players} onClick={onStart}>{busy ? 'Starting…' : joinedCount !== t.max_players ? `Start when full · ${joinedCount}/${t.max_players}` : 'Generate bracket & start'} <ArrowRight size={14}/></button></>}
     </section><section className="panel tournament-bracket-panel"><div className="panel-head"><div><div className="eyebrow"><span className="eyebrow-dot"/> KNOCKOUT BRACKET</div><h3>{t.status === 'registration' ? 'Bracket preview' : t.status === 'completed' ? 'Completed bracket' : 'Tournament bracket'}</h3></div><span className="muted-caption">{matches.length ? `${matches.filter(match => match.status === 'completed').length}/${matches.length} results` : 'Generated when the organizer starts'}</span></div>
-      {matches.length ? <div className="tournament-bracket-scroll"><div className="tournament-bracket">{rounds.map(round => <div className="tournament-round" key={round}><h4>{roundLabel(t.max_players, round)}</h4><div className={`tournament-round-matches tournament-round-${round}`}>{matches.filter(match => match.round_number === round).map(match => <TournamentMatchCard key={match.id} match={match} currentUserId={userId} isOrganizer={isOrganizer} busy={busy} onOpenProfile={onOpenProfile} onSubmit={onSubmit} onResolve={onResolve}/>)}</div></div>)}</div></div> : <div className="tournament-bracket-empty"><Trophy size={25}/><b>The bracket is waiting for a full field.</b><span>Once all {t.max_players} player slots are filled, the organizer can generate every round.</span><div className="tournament-capacity-track"><i style={{ width: `${Math.min(100, joinedCount / t.max_players * 100)}%` }}/></div></div>}
+      {matches.length ? <div className="tournament-bracket-scroll"><div className="tournament-bracket">{rounds.map(round => <div className="tournament-round" key={round}><h4>{roundLabel(t.max_players, round)}</h4><div className={`tournament-round-matches tournament-round-${round}`}>{matches.filter(match => match.round_number === round).map(match => <TournamentMatchCard key={match.id} match={match} currentUserId={userId} isOrganizer={isOrganizer} tournamentCompleted={t.status === 'completed'} busy={busy} onOpenProfile={onOpenProfile} onSubmit={onSubmit} onResolve={onResolve}/>)}</div></div>)}</div></div> : <div className="tournament-bracket-empty"><Trophy size={25}/><b>{t.status === 'completed' ? 'No bracket was generated.' : 'The bracket is waiting for a full field.'}</b><span>{t.status === 'completed' ? 'The tournament was closed before a bracket was started.' : `Once all ${t.max_players} player slots are filled, the organizer can generate every round.`}</span><div className="tournament-capacity-track"><i style={{ width: `${Math.min(100, joinedCount / t.max_players * 100)}%` }}/></div></div>}
     </section></div>
     <p className="tournament-fair-play"><ShieldCheck size={14}/> Knockout scores require both players to agree. Organizers can resolve disputed results. A draw must be settled with extra time or penalties.</p>
+    {endConfirmationOpen && <EndTournamentConfirmation tournamentTitle={t.title} busy={busy} onCancel={() => setEndConfirmationOpen(false)} onConfirm={async () => { const errorMessage = await onEnd(); if (!errorMessage) setEndConfirmationOpen(false); return errorMessage }}/ >}
   </>
+}
+
+type Standing = { playerId: string; profile: Profile | null; seed: number; wins: number; losses: number; goalsFor: number; goalsAgainst: number; furthestRound: number }
+function calculateTournamentStandings(participants: TournamentDetails['participants'], matches: TournamentMatch[], winnerId: string | null): Standing[] {
+  const standings = new Map<string, Standing>(participants.map(player => [player.player_id, { playerId: player.player_id, profile: player.profile, seed: player.seed, wins: 0, losses: 0, goalsFor: 0, goalsAgainst: 0, furthestRound: 0 }]))
+  for (const match of matches) {
+    for (const playerId of [match.player1_id, match.player2_id]) {
+      const standing = playerId ? standings.get(playerId) : null
+      if (standing) standing.furthestRound = Math.max(standing.furthestRound, match.round_number)
+    }
+    if (match.status !== 'completed' || match.player1_score === null || match.player2_score === null) continue
+    const first = match.player1_id ? standings.get(match.player1_id) : null
+    const second = match.player2_id ? standings.get(match.player2_id) : null
+    if (!first || !second) continue
+    first.goalsFor += match.player1_score; first.goalsAgainst += match.player2_score
+    second.goalsFor += match.player2_score; second.goalsAgainst += match.player1_score
+    if (match.winner_id === first.playerId) { first.wins++; second.losses++ }
+    else if (match.winner_id === second.playerId) { second.wins++; first.losses++ }
+  }
+  return [...standings.values()].sort((a, b) => Number(b.playerId === winnerId) - Number(a.playerId === winnerId) || b.furthestRound - a.furthestRound || b.wins - a.wins || (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) || b.goalsFor - a.goalsFor || a.seed - b.seed)
+}
+
+function TournamentFinalStandings({ maxPlayers, standings, hasChampion, onOpenProfile }: { maxPlayers: number; standings: Standing[]; hasChampion: boolean; onOpenProfile: (id: string) => void }) {
+  return <section className="panel tournament-final-standings"><div className="panel-head"><div><div className="eyebrow"><span className="eyebrow-dot"/> TOURNAMENT HISTORY</div><h3>Final standings</h3></div><span className="muted-caption">{standings.length} players</span></div>
+    {!hasChampion && <p className="tournament-standings-note">Standings reflect completed match results, then the furthest round reached and seed. No champion is recorded without a completed final.</p>}
+    {standings.length ? <div className="tournament-standings-list">{standings.map((row, index) => <div className={`tournament-standing-row ${index === 0 && hasChampion ? 'standing-champion' : ''}`} key={row.playerId}><span className="standing-place">{index + 1}</span><PlayerLink id={row.playerId} onOpen={onOpenProfile} className="tournament-roster-player"><Avatar name={row.profile?.display_name || row.profile?.username || 'Player'} image={row.profile?.avatar_url} size="sm"/><span><b>{row.profile?.display_name || row.profile?.username || 'Player'}</b><small>@{row.profile?.username || 'player'}</small></span></PlayerLink>{index === 0 && hasChampion ? <span className="standing-crown"><Crown size={13}/> CHAMPION</span> : <span className="standing-crown-placeholder" aria-hidden="true"/>}<span className="standing-stat"><b>{row.wins}–{row.losses}</b><small>W–L</small></span><span className="standing-stat"><b>{row.goalsFor - row.goalsAgainst > 0 ? '+' : ''}{row.goalsFor - row.goalsAgainst}</b><small>GD</small></span><span className="standing-round">{row.furthestRound ? `Round reached: ${roundLabel(maxPlayers, row.furthestRound)}` : 'Not started'}</span></div>)}</div> : <div className="profile-empty-note"><Users size={16}/> No registered players.</div>}
+  </section>
+}
+
+function EndTournamentConfirmation({ tournamentTitle, busy, onCancel, onConfirm }: { tournamentTitle: string; busy: boolean; onCancel: () => void; onConfirm: () => Promise<string | null> }) {
+  const [error, setError] = useState('')
+  return <div className="tournament-modal-backdrop" role="presentation" onMouseDown={event => { if (event.currentTarget === event.target && !busy) onCancel() }}><section className="panel tournament-form-modal end-tournament-modal" role="dialog" aria-modal="true" aria-labelledby="end-tournament-title">
+    <div className="tournament-modal-head"><div><div className="eyebrow"><span className="eyebrow-dot"/> ORGANIZER ACTION</div><h2 id="end-tournament-title">End tournament?</h2></div><button className="icon-button" type="button" aria-label="Close confirmation" disabled={busy} onClick={onCancel}><X size={18}/></button></div>
+    <p className="end-tournament-copy">You’re about to end <b>{tournamentTitle}</b>. This will stop new registrations and tournament match activity. Existing players, matches, scores, and results will be preserved. The tournament cannot be reopened.</p>
+    {error && <div className="tournament-error" role="alert">Could not end the tournament: {error}</div>}
+    <div className="tournament-form-actions"><button type="button" className="button button-outline" disabled={busy} onClick={onCancel}>Keep tournament active</button><button type="button" className="button button-end-tournament" disabled={busy} onClick={async () => { setError(await onConfirm() || '') }}>{busy ? 'Ending…' : 'Confirm End Tournament'} <OctagonX size={14}/></button></div>
+  </section></div>
 }
 
 function TournamentRulesCard({ compact = false }: { compact?: boolean }) {
@@ -228,8 +284,8 @@ function TournamentSettingsForm({ tournament, busy, onSave }: { tournament: Tour
   </form>
 }
 
-function TournamentMatchCard({ match, currentUserId, isOrganizer, busy, onOpenProfile, onSubmit, onResolve }: {
-  match: TournamentMatch; currentUserId: string; isOrganizer: boolean; busy: boolean; onOpenProfile: (id: string) => void;
+function TournamentMatchCard({ match, currentUserId, isOrganizer, tournamentCompleted, busy, onOpenProfile, onSubmit, onResolve }: {
+  match: TournamentMatch; currentUserId: string; isOrganizer: boolean; tournamentCompleted: boolean; busy: boolean; onOpenProfile: (id: string) => void;
   onSubmit: (matchId: string, own: number, opponent: number) => void; onResolve: (matchId: string, one: number, two: number) => void;
 }) {
   const [ownScore, setOwnScore] = useState('')
@@ -238,7 +294,7 @@ function TournamentMatchCard({ match, currentUserId, isOrganizer, busy, onOpenPr
   const [score2, setScore2] = useState('')
   const mine = currentUserId === match.player1_id ? 1 : currentUserId === match.player2_id ? 2 : 0
   const submitted = mine === 1 ? match.player1_submitted_for !== null : mine === 2 ? match.player2_submitted_for !== null : false
-  const canSubmit = mine > 0 && match.status !== 'completed' && match.status !== 'disputed' && !submitted && match.player1_id && match.player2_id
+  const canSubmit = !tournamentCompleted && mine > 0 && match.status !== 'completed' && match.status !== 'disputed' && !submitted && match.player1_id && match.player2_id
   return <article className={`tournament-match-card ${match.status === 'completed' ? 'match-done' : ''}`}>
     <span className={`tournament-match-state match-state-${match.status}`}>{match.status.replace('_', ' ')}</span>
     <TournamentMatchPlayer id={match.player1_id} profile={match.player1} score={match.player1_score} winner={match.winner_id === match.player1_id} onOpenProfile={onOpenProfile}/>
@@ -247,7 +303,7 @@ function TournamentMatchCard({ match, currentUserId, isOrganizer, busy, onOpenPr
     {canSubmit && <form className="tournament-score-form" onSubmit={event => { event.preventDefault(); if (ownScore !== '' && opponentScore !== '') onSubmit(match.id, Number(ownScore), Number(opponentScore)) }}><span>Your score</span><input required type="number" min="0" max="99" value={ownScore} onChange={e => setOwnScore(e.target.value)} aria-label="Your score"/><b>:</b><input required type="number" min="0" max="99" value={opponentScore} onChange={e => setOpponentScore(e.target.value)} aria-label="Opponent score"/><button className="button button-lime" disabled={busy}>Submit</button></form>}
     {submitted && match.status === 'awaiting_confirmation' && <div className="tournament-match-hint">Your report is in. Waiting for opponent confirmation.</div>}
     {match.status === 'disputed' && <div className="tournament-match-hint disputed">Score reports differ. The organizer can resolve this result.</div>}
-    {isOrganizer && ['disputed', 'awaiting_confirmation'].includes(match.status) && <form className="tournament-resolve-form" onSubmit={event => { event.preventDefault(); if (score1 !== '' && score2 !== '') onResolve(match.id, Number(score1), Number(score2)) }}><span>Organizer result</span><input required type="number" min="0" max="99" value={score1} onChange={e => setScore1(e.target.value)} aria-label="Player one final score"/><b>:</b><input required type="number" min="0" max="99" value={score2} onChange={e => setScore2(e.target.value)} aria-label="Player two final score"/><button type="submit" className="button button-outline" disabled={busy}>Resolve</button></form>}
+    {!tournamentCompleted && isOrganizer && ['disputed', 'awaiting_confirmation'].includes(match.status) && <form className="tournament-resolve-form" onSubmit={event => { event.preventDefault(); if (score1 !== '' && score2 !== '') onResolve(match.id, Number(score1), Number(score2)) }}><span>Organizer result</span><input required type="number" min="0" max="99" value={score1} onChange={e => setScore1(e.target.value)} aria-label="Player one final score"/><b>:</b><input required type="number" min="0" max="99" value={score2} onChange={e => setScore2(e.target.value)} aria-label="Player two final score"/><button type="submit" className="button button-outline" disabled={busy}>Resolve</button></form>}
   </article>
 }
 

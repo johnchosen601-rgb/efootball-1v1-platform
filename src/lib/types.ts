@@ -5,10 +5,10 @@ export type Profile = {
   platform: string | null; favourite_club: string | null; playing_style: string | null;
   bio: string | null; created_at: string; last_seen_at: string | null;
 }
-export type MatchRequest = { id: string; user_id: string; created_at: string; profiles: Profile }
-export type Match = { id: string; player_one_id: string; player_two_id: string; requester_id: string; room_code: string | null; status: string; player_one_score: number | null; player_two_score: number | null; winner_id: string | null; created_at: string }
+export type MatchRequest = { id: string; user_id: string; created_at: string; expires_at: string; profiles: Profile }
+export type Match = { id: string; player_one_id: string; player_two_id: string; requester_id: string; room_code: string | null; status: string; player_one_score: number | null; player_two_score: number | null; player_one_evidence_path: string | null; player_two_evidence_path: string | null; winner_id: string | null; created_at: string }
 export type MatchHistoryItem = Pick<Match, 'id' | 'player_one_id' | 'player_two_id' | 'status' | 'player_one_score' | 'player_two_score' | 'winner_id' | 'created_at'>
-export type ChatMessage = { id: string; match_id: string; sender_id: string; body: string; created_at: string }
+export type ChatMessage = { id: string; match_id: string; sender_id: string; message: string; created_at: string }
 export type CompletedProfileMatch = {
   id: string; player1_id: string; player2_id: string; player1_score: number;
   player2_score: number; winner_id: string | null; status: string; created_at: string;
