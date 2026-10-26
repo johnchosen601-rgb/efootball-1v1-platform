@@ -1,13 +1,13 @@
 import { supabase } from './supabase'
 import type { ChatMessage, Match, MatchHistoryItem, MatchRequest, Profile } from './types'
 
-const profileColumns = 'id,username,display_name,avatar_url,country,efootball_id,platform,favourite_club,playing_style,bio,rating,wins,losses,draws,created_at,last_seen_at'
+const profileColumns = 'id,username,display_name,avatar_url,country,efootball_id,platform,favourite_club,playing_style,bio,rating,wins,losses,draws,created_at,last_seen_at,is_deleted'
 
 const withMatchesPlayed = (profile: Profile) => ({ ...profile, matches_played: profile.wins + profile.losses + profile.draws })
 
 export async function getProfiles(): Promise<Profile[]> {
   if (!supabase) return []
-  const { data, error } = await supabase.from('profiles').select(profileColumns).order('rating', { ascending: false }).limit(50)
+  const { data, error } = await supabase.from('profiles').select(profileColumns).eq('is_deleted', false).order('rating', { ascending: false }).limit(50)
   if (error) throw error
   return ((data ?? []) as Profile[]).map(withMatchesPlayed)
 }
@@ -26,7 +26,7 @@ export async function getProfilesByIds(profileIds: string[]): Promise<Profile[]>
 }
 export async function getProfileRank(rating: number): Promise<number> {
   if (!supabase) return 0
-  const { count, error } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).gt('rating', rating)
+  const { count, error } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('is_deleted', false).gt('rating', rating)
   if (error) throw error
   return (count ?? 0) + 1
 }
@@ -99,9 +99,9 @@ export async function cancelRequest(requestId: string): Promise<void> {
 }
 export async function getMatch(matchId: string): Promise<Match> {
   if (!supabase) throw new Error('Connect Supabase to open a private match room.')
-  const { data, error } = await supabase.from('matches').select('id,request_id,player1_id,player2_id,player1_score,player2_score,player1_evidence_path,player2_evidence_path,status,winner_id,created_at,completed_at,room_code').eq('id', matchId).single()
+  const { data, error } = await supabase.from('matches').select('id,request_id,player1_id,player2_id,player1_score,player2_score,player1_evidence_path,player2_evidence_path,status,winner_id,created_at,completed_at,room_code,result_deadline_at,opponent_deadline_at,void_reason').eq('id', matchId).single()
   if (error) throw error
-  const row = data as { id: string; player1_id: string; player2_id: string; player1_score: number | null; player2_score: number | null; player1_evidence_path: string | null; player2_evidence_path: string | null; status: string; winner_id: string | null; created_at: string; room_code: string | null }
+  const row = data as { id: string; player1_id: string; player2_id: string; player1_score: number | null; player2_score: number | null; player1_evidence_path: string | null; player2_evidence_path: string | null; status: string; winner_id: string | null; created_at: string; room_code: string | null; result_deadline_at: string | null; opponent_deadline_at: string | null; void_reason: string | null }
   return {
     ...row,
     player_one_id: row.player1_id,

@@ -125,3 +125,6 @@
   .anyone-hero-card .hero-footnote{position:absolute;top:295px;left:0;right:0;gap:5px;font-size:7px;white-space:nowrap}
   .hero-index{right:13px;bottom:12px}
 }
+
+.result-deadline-note{display:block;margin-top:7px;color:#91c9e7;font-size:9px}
+.result-voided{display:flex;align-items:flex-start;gap:10px;margin-top:12px;padding:13px;border:1px solid #725d38;border-radius:6px;background:#241f16;color:#e9cc8c}.result-voided>div{display:grid;gap:4px}.result-voided small{color:#c5b48b;font-size:9px;line-height:1.5}

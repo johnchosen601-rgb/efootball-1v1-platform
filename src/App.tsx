@@ -5,13 +5,14 @@ import { cancelRequest, createRequest, getMatchHistory, getOpenRequests, getProf
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import type { MatchRequest, Profile } from './lib/types'
 import { MatchRoom } from './components/MatchRoom'
+import { AdminPlayersPage } from './components/AdminPlayersPage'
 import { NotificationsPanel } from './components/NotificationsPanel'
 import { EditProfilePage, PlayerProfilePage } from './components/ProfilePages'
 import { PlayerLink } from './components/PlayerBits'
 import { TournamentPage } from './components/TournamentPages'
 import { getPlayerTournamentHistory } from './lib/tournaments'
 
-type Page = 'overview' | 'anyone' | 'players' | 'rankings' | 'matches' | 'tournaments' | 'tournamentDetail' | 'faq' | 'about' | 'how' | 'privacy' | 'terms' | 'contact' | 'profile' | 'editProfile'
+type Page = 'overview' | 'anyone' | 'players' | 'rankings' | 'matches' | 'tournaments' | 'tournamentDetail' | 'faq' | 'about' | 'how' | 'privacy' | 'terms' | 'contact' | 'profile' | 'editProfile' | 'adminPlayers'
 type Notice = { kind: 'success' | 'error' | 'info'; text: string }
 const nav: { id: Page; title: string; icon: typeof Home }[] = [
   { id: 'overview', title: 'Overview', icon: Home }, { id: 'anyone', title: '1v1 Anyone?', icon: Swords },
@@ -37,7 +38,7 @@ function communityLoadError(error: unknown): string {
   }
   return error instanceof Error ? error.message : 'We could not load the latest players.'
 }
-const publicPaths: Record<string, Page> = { '/': 'overview', '/anyone': 'anyone', '/about': 'about', '/how-it-works': 'how', '/players': 'players', '/rankings': 'rankings', '/matches': 'matches', '/tournaments': 'tournaments', '/faq': 'faq', '/privacy': 'privacy', '/terms': 'terms', '/contact': 'contact' }
+const publicPaths: Record<string, Page> = { '/': 'overview', '/anyone': 'anyone', '/about': 'about', '/how-it-works': 'how', '/players': 'players', '/rankings': 'rankings', '/matches': 'matches', '/tournaments': 'tournaments', '/faq': 'faq', '/privacy': 'privacy', '/terms': 'terms', '/contact': 'contact', '/admin/players': 'adminPlayers' }
 const pagePaths: Partial<Record<Page, string>> = Object.fromEntries(Object.entries(publicPaths).map(([path, page]) => [page, path]))
 const roomFromPath = (path: string) => path.match(/^\/room\/([0-9a-f-]{36})$/i)?.[1] ?? null
 const profileFromPath = (path: string) => path.match(/^\/players\/([0-9a-f-]{36})$/i)?.[1] ?? null
@@ -49,6 +50,7 @@ export default function App() {
   const [tournamentId, setTournamentId] = useState<string | null>(() => tournamentFromPath(window.location.pathname))
   const [session, setSession] = useState<Session | null>(null)
   const [authOpen, setAuthOpen] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot' | 'reset'>('signup')
   const [loadingAuth, setLoadingAuth] = useState(false)
   const [email, setEmail] = useState('')
@@ -64,11 +66,33 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('All regions')
 
+  const clearSessionView = () => {
+    setSession(null)
+    setRequests([])
+    setProfiles([])
+    setOwnRequest(null)
+    setRoomId(null)
+    setProfileId(null)
+    setTournamentId(null)
+    setMobileNav(false)
+    setNotificationOpen(false)
+    setAuthOpen(false)
+    setEmail('')
+    setPassword('')
+    setPage('overview')
+    if (window.location.pathname !== '/') window.history.replaceState({}, '', '/')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   useEffect(() => {
     if (!supabase) return
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
     const { data } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, next) => {
-      setSession(next)
+      if (event === 'SIGNED_OUT') {
+        clearSessionView()
+      } else {
+        setSession(next)
+      }
       if (event === 'PASSWORD_RECOVERY') { setAuthMode('reset'); setAuthOpen(true) }
     })
     return () => data.subscription.unsubscribe()
@@ -119,8 +143,8 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
   useEffect(() => {
-    const titles: Record<Page, string> = { overview: 'Find your next opponent', anyone: '1v1 Anyone', players: 'Discover eFootball players', rankings: 'eFootball player rankings', matches: 'Match history', tournaments: 'Community tournaments', tournamentDetail: 'Tournament bracket', faq: 'Frequently asked questions', about: 'About ConnectGamers1v1', how: 'How ConnectGamers1v1 works', privacy: 'Privacy policy', terms: 'Terms of service', contact: 'Contact', profile: 'Player profile', editProfile: 'Edit player profile' }
-    const descriptions: Record<Page, string> = { overview: 'Find your next eFootball opponent. Play 1v1 matches, meet players and build your competitive profile.', anyone: 'Request or join a live ConnectGamers1v1 match and meet your next opponent.', players: 'Discover eFootball players, explore profiles and find your next rival.', rankings: 'Explore ConnectGamers1v1 player rankings and verified competitive records.', matches: 'View your confirmed ConnectGamers1v1 match history and results.', tournaments: 'Join free eFootball knockout tournaments, track your bracket and compete for the title.', tournamentDetail: 'View tournament competitors, bracket rounds, results and champion.', faq: 'Answers about ConnectGamers1v1 matchmaking, private rooms and results.', about: 'Learn about the independent ConnectGamers1v1 player community.', how: 'Learn how to find an opponent, play a match and confirm a result.', privacy: 'Read how ConnectGamers1v1 handles account, profile and match information.', terms: 'Read the terms for using the ConnectGamers1v1 community platform.', contact: 'Find support information for the ConnectGamers1v1 player community.', profile: 'View player information, verified match history and achievements.', editProfile: 'Update your public eFootball player profile.' }
+    const titles: Record<Page, string> = { overview: 'Find your next opponent', anyone: '1v1 Anyone', players: 'Discover eFootball players', rankings: 'eFootball player rankings', matches: 'Match history', tournaments: 'Community tournaments', tournamentDetail: 'Tournament bracket', faq: 'Frequently asked questions', about: 'About ConnectGamers1v1', how: 'How ConnectGamers1v1 works', privacy: 'Privacy policy', terms: 'Terms of service', contact: 'Contact', profile: 'Player profile', editProfile: 'Edit player profile', adminPlayers: 'Player account administration' }
+    const descriptions: Record<Page, string> = { overview: 'Find your next eFootball opponent. Play 1v1 matches, meet players and build your competitive profile.', anyone: 'Request or join a live ConnectGamers1v1 match and meet your next opponent.', players: 'Discover eFootball players, explore profiles and find your next rival.', rankings: 'Explore ConnectGamers1v1 player rankings and verified competitive records.', matches: 'View your confirmed ConnectGamers1v1 match history and results.', tournaments: 'Join free eFootball knockout tournaments, track your bracket and compete for the title.', tournamentDetail: 'View tournament competitors, bracket rounds, results and champion.', faq: 'Answers about ConnectGamers1v1 matchmaking, private rooms and results.', about: 'Learn about the independent ConnectGamers1v1 player community.', how: 'Learn how to find an opponent, play a match and confirm a result.', privacy: 'Read how ConnectGamers1v1 handles account, profile and match information.', terms: 'Read the terms for using the ConnectGamers1v1 community platform.', contact: 'Find support information for the ConnectGamers1v1 player community.', profile: 'View player information, verified match history and achievements.', editProfile: 'Update your public eFootball player profile.', adminPlayers: 'Securely manage player accounts and preserve competitive records.' }
     document.title = `${titles[page]} | ConnectGamers1v1`
     const description = document.querySelector<HTMLMetaElement>('meta[name="description"]')
     const socialDescription = document.querySelector<HTMLMetaElement>('meta[property="og:description"]')
@@ -159,7 +183,23 @@ export default function App() {
       setNotice({ kind: 'error', text: error instanceof Error ? error.message : 'Authentication failed. Please try again.' })
     } finally { setLoadingAuth(false) }
   }
-  const signOut = async () => { await supabase?.auth.signOut(); go('overview'); setNotice({ kind: 'success', text: 'You have signed out.' }) }
+  const signOut = async () => {
+    if (!supabase) {
+      setNotice({ kind: 'error', text: 'Sign out is unavailable because authentication is not configured.' })
+      return
+    }
+    setSigningOut(true)
+    try {
+      const { error } = await supabase.auth.signOut({ scope: 'local' })
+      if (error) throw error
+      clearSessionView()
+      setNotice({ kind: 'success', text: 'You have signed out.' })
+    } catch (error) {
+      setNotice({ kind: 'error', text: error instanceof Error ? `Could not log out. ${error.message}` : 'Could not log out. Please try again.' })
+    } finally {
+      setSigningOut(false)
+    }
+  }
   const requestMatch = async () => {
     if (!session) { setAuthMode('signup'); setAuthOpen(true); return }
     if (ownRequest) return
@@ -198,9 +238,9 @@ export default function App() {
     </aside>
     {mobileNav && <button className="scrim" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
     <main className="main-area">
-      <header className="topbar"><button className="mobile-menu icon-button" aria-label="Open menu" onClick={() => setMobileNav(true)}><Menu size={20}/></button><button className="mobile-brand" onClick={() => go('overview')} aria-label="ConnectGamers1v1 home"><span className="brand-mark">C<span>G</span></span><span className="brand-name">ConnectGamers<b>1v1</b><small>PLAY · COMPETE · GROW</small></span></button><div className="crumb"><span>Workspace</span><ChevronRight size={14}/><b>{roomId ? 'Private match room' : page === 'profile' ? 'Player profile' : page === 'editProfile' ? 'Edit profile' : page === 'tournamentDetail' ? 'Tournament bracket' : nav.find(n => n.id === page)?.title ?? 'Community'}</b></div><div className="top-actions"><span className={`connection-pill ${isSupabaseConfigured ? 'is-live' : 'is-setup'}`}><i/>{isSupabaseConfigured ? 'Live field' : 'Setup required'}</span><div className="notification-anchor"><button className="icon-button notification-button" aria-label="Notifications" aria-expanded={notificationOpen} onClick={() => setNotificationOpen(value => !value)}><Bell size={17}/></button>{notificationOpen && <NotificationsPanel session={session} onOpenMatch={id => openRoom(id)}/>}</div><span className="top-divider"/><button className="top-avatar" aria-label={session ? 'Open your player profile' : 'Sign in'} onClick={() => session ? openProfile(session.user.id) : (setAuthMode('login'), setAuthOpen(true))}>{initials(displayName)}</button>{session && <button className="icon-button desktop-signout" aria-label="Sign out" onClick={() => void signOut()}><LogOut size={16}/></button>}</div></header>
+      <header className="topbar"><button className="mobile-menu icon-button" aria-label="Open menu" onClick={() => setMobileNav(true)}><Menu size={20}/></button><button className="mobile-brand" onClick={() => go('overview')} aria-label="ConnectGamers1v1 home"><span className="brand-mark">C<span>G</span></span><span className="brand-name">ConnectGamers<b>1v1</b><small>PLAY · COMPETE · GROW</small></span></button><div className="crumb"><span>Workspace</span><ChevronRight size={14}/><b>{roomId ? 'Private match room' : page === 'profile' ? 'Player profile' : page === 'editProfile' ? 'Edit profile' : page === 'tournamentDetail' ? 'Tournament bracket' : nav.find(n => n.id === page)?.title ?? 'Community'}</b></div><div className="top-actions"><span className={`connection-pill ${isSupabaseConfigured ? 'is-live' : 'is-setup'}`}><i/>{isSupabaseConfigured ? 'Live field' : 'Setup required'}</span><div className="notification-anchor"><button className="icon-button notification-button" aria-label="Notifications" aria-expanded={notificationOpen} onClick={() => setNotificationOpen(value => !value)}><Bell size={17}/></button>{notificationOpen && <NotificationsPanel session={session} onOpenMatch={id => openRoom(id)}/>}</div><span className="top-divider"/><button className="top-avatar" aria-label={session ? 'Open your player profile' : 'Sign in'} onClick={() => session ? openProfile(session.user.id) : (setAuthMode('login'), setAuthOpen(true))}>{initials(displayName)}</button>{session && <button className="icon-button desktop-signout" aria-label="Log out" onClick={() => void signOut()} disabled={signingOut}><LogOut size={16}/></button>}</div></header>
       <div className="content-wrap">
-        {roomId ? <MatchRoom matchId={roomId} userId={session?.user.id ?? ''} notify={setNotice} onBack={() => go('anyone')} onOpenProfile={openProfile}/> : page === 'profile' && profileId ? session ? <PlayerProfilePage profileId={profileId} ownId={session.user.id} onBack={() => go('players')} onEdit={editProfile} onOpenPlayer={openProfile} notify={setNotice}/> : <div className="history-empty"><UserRound size={24}/><h3>Sign in to view player profiles.</h3><button className="button button-lime" onClick={() => { setAuthMode('login'); setAuthOpen(true) }}>Sign in <ArrowRight size={14}/></button></div> : page === 'editProfile' ? <EditProfilePage session={session} initialProfile={session ? profiles.find(p => p.id === session.user.id) ?? null : null} onBack={() => session ? openProfile(session.user.id) : go('overview')} onSaved={() => session && openProfile(session.user.id)} notify={setNotice}/> : page === 'overview' ? <Overview session={session} requests={requests} profiles={profiles} onRequest={() => void requestMatch()} onNavigate={go} onJoin={join} busy={busy} ownRequest={ownRequest} onCancel={() => void cancelOwn()} onAuth={() => { setAuthMode('signup'); setAuthOpen(true) }} onOpenProfile={openProfile}/> : page === 'anyone' ? <Anyone session={session} requests={requests} onRequest={() => void requestMatch()} onJoin={join} busy={busy} ownRequest={ownRequest} onCancel={() => void cancelOwn()} onBack={() => go('overview')} onOpenProfile={openProfile}/> : page === 'players' ? <Players session={session} profiles={filteredProfiles} loading={!isSupabaseConfigured} search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} onAuth={() => { setAuthMode('signup'); setAuthOpen(true) }} onOpenProfile={openProfile}/> : page === 'rankings' ? <Rankings session={session} profiles={profiles} onAuth={() => { setAuthMode('login'); setAuthOpen(true) }} onOpenProfile={openProfile}/> : page === 'matches' ? <Matches session={session} onAuth={() => { setAuthMode('login'); setAuthOpen(true) }} onOpenProfile={openProfile} onOpenTournament={openTournament}/> : page === 'tournaments' || page === 'tournamentDetail' ? <TournamentPage session={session} tournamentId={tournamentId} onOpenTournament={openTournament} onOpenProfile={openProfile} notify={setNotice} onAuth={() => { setAuthMode('login'); setAuthOpen(true) }}/> : page === 'faq' ? <FAQ/> : page === 'how' ? <How/> : page === 'about' ? <About onNavigate={go}/> : page === 'privacy' ? <LegalPage kind="privacy"/> : page === 'terms' ? <LegalPage kind="terms"/> : page === 'contact' ? <ContactPage/> : <Overview session={session} requests={requests} profiles={profiles} onRequest={() => void requestMatch()} onNavigate={go} onJoin={join} busy={busy} ownRequest={ownRequest} onCancel={() => void cancelOwn()} onAuth={() => { setAuthMode('signup'); setAuthOpen(true) }} onOpenProfile={openProfile}/ >}
+        {page === 'adminPlayers' ? <AdminPlayersPage session={session}/> : roomId ? session ? <MatchRoom matchId={roomId} userId={session.user.id} notify={setNotice} onBack={() => go('anyone')} onOpenProfile={openProfile}/> : <div className="history-empty"><UserRound size={24}/><h3>Sign in to reopen this private match room.</h3><p>Your room is available again after you sign in.</p><button className="button button-lime" onClick={() => { setAuthMode('login'); setAuthOpen(true) }}>Sign in <ArrowRight size={14}/></button></div> : page === 'profile' && profileId ? session ? <PlayerProfilePage profileId={profileId} ownId={session.user.id} signingOut={signingOut} isAdmin={session.user.app_metadata?.role === 'admin'} onAdmin={() => go('adminPlayers')} onSignOut={() => void signOut()} onBack={() => go('players')} onEdit={editProfile} onOpenPlayer={openProfile} notify={setNotice}/> : <div className="history-empty"><UserRound size={24}/><h3>Sign in to view player profiles.</h3><button className="button button-lime" onClick={() => { setAuthMode('login'); setAuthOpen(true) }}>Sign in <ArrowRight size={14}/></button></div> : page === 'editProfile' ? <EditProfilePage session={session} initialProfile={session ? profiles.find(p => p.id === session.user.id) ?? null : null} onBack={() => session ? openProfile(session.user.id) : go('overview')} onSaved={() => session && openProfile(session.user.id)} notify={setNotice}/> : page === 'overview' ? <Overview session={session} requests={requests} profiles={profiles} onRequest={() => void requestMatch()} onNavigate={go} onJoin={join} busy={busy} ownRequest={ownRequest} onCancel={() => void cancelOwn()} onAuth={() => { setAuthMode('signup'); setAuthOpen(true) }} onOpenProfile={openProfile}/> : page === 'anyone' ? <Anyone session={session} requests={requests} onRequest={() => void requestMatch()} onJoin={join} busy={busy} ownRequest={ownRequest} onCancel={() => void cancelOwn()} onBack={() => go('overview')} onOpenProfile={openProfile}/> : page === 'players' ? <Players session={session} profiles={filteredProfiles} loading={!isSupabaseConfigured} search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} onAuth={() => { setAuthMode('signup'); setAuthOpen(true) }} onOpenProfile={openProfile}/> : page === 'rankings' ? <Rankings session={session} profiles={profiles} onAuth={() => { setAuthMode('login'); setAuthOpen(true) }} onOpenProfile={openProfile}/> : page === 'matches' ? <Matches session={session} onAuth={() => { setAuthMode('login'); setAuthOpen(true) }} onOpenProfile={openProfile} onOpenTournament={openTournament}/> : page === 'tournaments' || page === 'tournamentDetail' ? <TournamentPage session={session} tournamentId={tournamentId} onOpenTournament={openTournament} onOpenProfile={openProfile} notify={setNotice} onAuth={() => { setAuthMode('login'); setAuthOpen(true) }}/> : page === 'faq' ? <FAQ/> : page === 'how' ? <How/> : page === 'about' ? <About onNavigate={go}/> : page === 'privacy' ? <LegalPage kind="privacy"/> : page === 'terms' ? <LegalPage kind="terms"/> : page === 'contact' ? <ContactPage/> : <Overview session={session} requests={requests} profiles={profiles} onRequest={() => void requestMatch()} onNavigate={go} onJoin={join} busy={busy} ownRequest={ownRequest} onCancel={() => void cancelOwn()} onAuth={() => { setAuthMode('signup'); setAuthOpen(true) }} onOpenProfile={openProfile}/ >}
         <footer className="site-footer"><span className="footer-brand"><span>© 2026 <b>ConnectGamers1v1</b></span></span><span>Competitive eFootball player community. Not affiliated with KONAMI.</span><div><button onClick={() => go('about')}>About</button><button onClick={() => go('how')}>How it works</button><button onClick={() => go('faq')}>FAQ</button><button onClick={() => go('contact')}>Contact</button><button onClick={() => go('privacy')}>Privacy</button><button onClick={() => go('terms')}>Terms</button></div></footer>
       </div>
     </main>

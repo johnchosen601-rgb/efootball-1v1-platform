@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, BadgeCheck, Gamepad2, Globe2, Medal, Save, Shield, Swords, Trophy, UserRound } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BadgeCheck, Gamepad2, Globe2, LogOut, Medal, Save, Shield, Swords, Trophy, UserRound } from 'lucide-react'
 import type { Session } from '@supabase/supabase-js'
 import { getProfile, getProfileMatches, getProfileRank, updateProfile } from '../lib/matches'
 import { supabase } from '../lib/supabase'
@@ -9,14 +9,17 @@ import { getPlayerTournamentHistory, getPlayerTournamentWinCount } from '../lib/
 import type { TournamentHistoryItem } from '../lib/types'
 import '../profile.css'
 
+const PLAYING_STYLES = ['Possession Game', 'Quick Counter (QC)', 'Long Ball Counter (LBC)', 'Long Ball', 'Out Wide', 'Overload'] as const
+
 type Notice = { kind: 'success' | 'error' | 'info'; text: string }
 const online = (lastSeen: string | null) => Boolean(lastSeen && Date.now() - new Date(lastSeen).getTime() < 180_000)
 const readableError = (error: unknown) => {
   const e = error as { message?: string; code?: string }
   return import.meta.env.DEV ? [e.code, e.message].filter(Boolean).join(': ') || 'Unknown error' : e.message || 'Please try again.'
 }
-export function PlayerProfilePage({ profileId, ownId, onBack, onEdit, onOpenPlayer, notify }: {
+export function PlayerProfilePage({ profileId, ownId, signingOut, isAdmin, onSignOut, onAdmin, onBack, onEdit, onOpenPlayer, notify }: {
   profileId: string; ownId: string | null; onBack: () => void; onEdit: () => void;
+  signingOut: boolean; isAdmin: boolean; onSignOut: () => void; onAdmin: () => void;
   onOpenPlayer: (id: string) => void; notify: (notice: Notice) => void
 }) {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -66,7 +69,7 @@ export function PlayerProfilePage({ profileId, ownId, onBack, onEdit, onOpenPlay
         {profile.bio && <div className="profile-bio">{profile.bio}</div>}
         <div className="profile-tags">{profile.platform && <span><Gamepad2 size={13}/>{profile.platform}</span>}{profile.favourite_club && <span><Shield size={13}/>{profile.favourite_club}</span>}{profile.playing_style && <span><Swords size={13}/>{profile.playing_style}</span>}</div>
       </div>
-      <div className="profile-hero-actions">{ownId === profile.id && <button className="button button-lime" onClick={onEdit}>Edit profile <ArrowRight size={15}/></button>}</div>
+      <div className="profile-hero-actions">{ownId === profile.id && <><button className="button button-lime" onClick={onEdit}>Edit profile <ArrowRight size={15}/></button>{isAdmin && <button className="button button-admin" onClick={onAdmin}><Shield size={14}/>Manage players</button>}<button className="button button-signout" onClick={onSignOut} disabled={signingOut}><LogOut size={14}/>{signingOut ? 'Logging out…' : 'Log Out'}</button></>}</div>
       <div className="profile-rating"><small>COMPETITIVE RATING</small><b>{profile.rating}</b><span><Trophy size={13}/> {rank ? `GLOBAL #${rank}` : 'UNRANKED'}</span></div>
     </section>
     <section className="profile-facts-grid">
@@ -139,7 +142,7 @@ export function EditProfilePage({ session, initialProfile, onBack, onSaved, noti
         <label>eFootball ID<input maxLength={64} value={form.efootball_id} onChange={e => field('efootball_id', e.target.value)}/></label>
         <label>Platform / device<select value={form.platform} onChange={e => field('platform', e.target.value)}><option value="">Select platform</option><option>PlayStation</option><option>Xbox</option><option>PC</option><option>iOS</option><option>Android</option></select></label>
         <label>Favourite club<input maxLength={64} value={form.favourite_club} onChange={e => field('favourite_club', e.target.value)} placeholder="e.g. Arsenal"/></label>
-        <label>Playing style<input maxLength={64} value={form.playing_style} onChange={e => field('playing_style', e.target.value)} placeholder="e.g. Quick counter"/></label>
+        <label>Playing style<select value={form.playing_style} onChange={e => field('playing_style', e.target.value)}><option value="">Select playing style</option>{form.playing_style && !PLAYING_STYLES.includes(form.playing_style as typeof PLAYING_STYLES[number]) && <option value={form.playing_style}>Existing style: {form.playing_style}</option>}{PLAYING_STYLES.map(style => <option key={style} value={style}>{style}</option>)}</select><small>Overload is a custom community style, not an official in-game playstyle.</small></label>
         <label className="edit-bio-field">Short bio<textarea maxLength={240} rows={4} value={form.bio} onChange={e => field('bio', e.target.value)} placeholder="Tell other players how you like to play."/><small>{form.bio.length}/240</small></label>
       </div>
       <div className="edit-profile-actions"><button type="button" className="button button-outline" onClick={onBack}>Cancel</button><button type="submit" className="button button-lime" disabled={busy}>{busy ? 'Saving…' : 'Save profile'}{busy ? <span className="spinner"/> : <Save size={15}/>}</button></div>
