@@ -1,3 +1,5 @@
+export const PLAYING_STYLES = ['Possession Game', 'Quick Counter (QC)', 'Long Ball Counter (LBC)', 'Long Ball', 'Out Wide', 'Overload'] as const
+
 export type Profile = {
   id: string; username: string; display_name: string | null; country: string | null;
   avatar_url: string | null; rating: number; wins: number; losses: number;

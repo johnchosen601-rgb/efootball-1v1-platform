@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { ChatMessage, Match, MatchHistoryItem, MatchRequest, Profile } from './types'
+import { PLAYING_STYLES, type ChatMessage, type Match, type MatchHistoryItem, type MatchRequest, type Profile } from './types'
 
 const profileColumns = 'id,username,display_name,avatar_url,country,efootball_id,platform,favourite_club,playing_style,bio,rating,wins,losses,draws,created_at,last_seen_at,is_deleted'
 
@@ -52,6 +52,9 @@ export async function getProfileMatches(profileId: string, limit = 10) {
 }
 export async function updateProfile(profileId: string, values: Pick<Profile, 'username' | 'display_name' | 'country' | 'efootball_id' | 'platform' | 'favourite_club' | 'playing_style' | 'bio' | 'avatar_url'>): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured.')
+  if (values.playing_style !== null && !PLAYING_STYLES.includes(values.playing_style as typeof PLAYING_STYLES[number])) {
+    throw new Error('Choose one of the available eFootball playing styles.')
+  }
   const { data: auth, error: authError } = await supabase.auth.getUser()
   if (authError) throw authError
   if (!auth.user || auth.user.id !== profileId) throw new Error('You can only edit your own player profile.')

@@ -3,13 +3,11 @@ import { ArrowLeft, ArrowRight, BadgeCheck, Gamepad2, Globe2, LogOut, Medal, Sav
 import type { Session } from '@supabase/supabase-js'
 import { getProfile, getProfileMatches, getProfileRank, updateProfile } from '../lib/matches'
 import { supabase } from '../lib/supabase'
-import type { Profile } from '../lib/types'
+import { PLAYING_STYLES, type Profile } from '../lib/types'
 import { Avatar } from './PlayerBits'
 import { getPlayerTournamentHistory, getPlayerTournamentWinCount } from '../lib/tournaments'
 import type { TournamentHistoryItem } from '../lib/types'
 import '../profile.css'
-
-const PLAYING_STYLES = ['Possession Game', 'Quick Counter (QC)', 'Long Ball Counter (LBC)', 'Long Ball', 'Out Wide', 'Overload'] as const
 
 type Notice = { kind: 'success' | 'error' | 'info'; text: string }
 const online = (lastSeen: string | null) => Boolean(lastSeen && Date.now() - new Date(lastSeen).getTime() < 180_000)
@@ -142,7 +140,7 @@ export function EditProfilePage({ session, initialProfile, onBack, onSaved, noti
         <label>eFootball ID<input maxLength={64} value={form.efootball_id} onChange={e => field('efootball_id', e.target.value)}/></label>
         <label>Platform / device<select value={form.platform} onChange={e => field('platform', e.target.value)}><option value="">Select platform</option><option>PlayStation</option><option>Xbox</option><option>PC</option><option>iOS</option><option>Android</option></select></label>
         <label>Favourite club<input maxLength={64} value={form.favourite_club} onChange={e => field('favourite_club', e.target.value)} placeholder="e.g. Arsenal"/></label>
-        <label>Playing style<select value={form.playing_style} onChange={e => field('playing_style', e.target.value)}><option value="">Select playing style</option>{form.playing_style && !PLAYING_STYLES.includes(form.playing_style as typeof PLAYING_STYLES[number]) && <option value={form.playing_style}>Existing style: {form.playing_style}</option>}{PLAYING_STYLES.map(style => <option key={style} value={style}>{style}</option>)}</select><small>Overload is a custom community style, not an official in-game playstyle.</small></label>
+        <label>Playing style<select value={form.playing_style} onChange={e => field('playing_style', e.target.value)}><option value="">Select playing style</option>{PLAYING_STYLES.map(style => <option key={style} value={style}>{style}</option>)}</select><small>Overload is a custom community style, not an official in-game playstyle.</small></label>
         <label className="edit-bio-field">Short bio<textarea maxLength={240} rows={4} value={form.bio} onChange={e => field('bio', e.target.value)} placeholder="Tell other players how you like to play."/><small>{form.bio.length}/240</small></label>
       </div>
       <div className="edit-profile-actions"><button type="button" className="button button-outline" onClick={onBack}>Cancel</button><button type="submit" className="button button-lime" disabled={busy}>{busy ? 'Saving…' : 'Save profile'}{busy ? <span className="spinner"/> : <Save size={15}/>}</button></div>
